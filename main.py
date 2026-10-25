@@ -79,6 +79,8 @@ with open("weather_log.csv",mode="a", newline="") as f:
     if not file_exists:
         writer.writeheader()
     writer.writerow(row)
+with open ("weather.json", mode="w") as f:
+    json.dump(row, f, indent=2)
 print(f"📍 Location: {location_found.place}")
 print(f"🌡️ Temperature: {temp_c}°C ({temp_f:.1f}°F)")
 print(f"☀️ Condition: {weather_desc}")
