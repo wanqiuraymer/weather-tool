@@ -6,21 +6,51 @@ from pydantic import BaseModel,Field
 import json
 from pathlib import Path
 load_dotenv()
-lat=42.6056
-lon=-83.1499
+
 WEATHER_ENDPOINT = os.environ['API_ENDPOINT']
 client = Anthropic()
+user_input=input("What city do you want to look up?\n").strip()
+if not user_input:
+    print("Please enter a city name.")
+    exit()
+class Location(BaseModel):
+    found: bool = Field(description="false if the input is not a recognizable real place")
+    place: str = Field(description="full place name, e.g. 'Paris, France'; empty if not found")
+    ambiguous: bool = Field(description="true if several well-known places share this name")
+    lat: float = Field(ge=-90, le=90, description=f"show the latitude of a place in decimal degrees")
+    lon: float = Field(ge=-180, le=180, description=f"show the longitude of a place in decimal degrees")
+system=(
+    "Find the latitude and longitude of the place the user names. "
+    "If it isn't a real place, set found to false and use 0 for lat and lon. "
+    "If the name is ambiguous, pick the best-known one and set ambiguous to true."
+)
+
+claude_response=client.messages.parse(
+    model="claude-haiku-5-5",
+    system=system,
+    messages=[{"role":"user", "content": f"find the lat and lon of {user_input}"}],
+    max_tokens=2000,
+    output_format=Location
+)
+location_found=claude_response.parsed_output
+if location_found is None or not location_found.found:
+    print("Sorry, I couldn't find that place. Try a city name like 'Tokyo'.")
+    exit()
+if location_found.ambiguous:
+    print(f"Assuming you meant {location_found.place}. Add a state or country to be more specific.")
 parameters={
-    "latitude": lat,
-    "longitude": lon,
+    "latitude": location_found.lat,
+    "longitude": location_found.lon,
     "current": "temperature_2m,weather_code", 
 }
 try:
     response = requests.get(url=WEATHER_ENDPOINT, params=parameters)
     print(response.status_code)
+    response.raise_for_status()
 except requests.exceptions.RequestException:
-    print("Request failed, but the program didn't not crash")
-response.raise_for_status()
+    print("Request failed, but the program didn't crash")
+    exit()
+
 weather_data = response.json()
 temp_c= weather_data["current"]["temperature_2m"]
 temp_f=temp_c* 9 / 5 + 32
@@ -32,18 +62,7 @@ if weather_cd_str in weather_codes:  #weather_desc = weather_codes.get(weather_c
     weather_desc = weather_codes[weather_cd_str]
 else:
     weather_desc="Unknown"
-class Location(BaseModel):
-    place: str = Field(description="show the place name and country name with the latitude and longitude")
 
-
-claude_response=client.messages.parse(
-    model="claude-haiku-5-5",
-    system="you convert latitude and longitude to the place",
-    messages=[{"role":"user", "content": f"Latitude {lat}, longitude {lon}"}],
-    max_tokens=16000,
-    output_format=Location
-)
-location_found=claude_response.parsed_output
-print(f"📍 Location:{location_found.place}")
+print(f"📍 Location: {location_found.place}")
 print(f"🌡️ Temperature: {temp_c}°C ({temp_f:.1f}°F)")
 print(f"☀️ Condition: {weather_desc}")
