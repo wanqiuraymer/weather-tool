@@ -5,6 +5,8 @@ from anthropic import Anthropic
 from pydantic import BaseModel,Field
 import json
 from pathlib import Path
+import csv
+from datetime import datetime
 load_dotenv()
 
 WEATHER_ENDPOINT = os.environ['API_ENDPOINT']
@@ -62,7 +64,21 @@ if weather_cd_str in weather_codes:  #weather_desc = weather_codes.get(weather_c
     weather_desc = weather_codes[weather_cd_str]
 else:
     weather_desc="Unknown"
+row={
+    "city": user_input,
+    "latitude": location_found.lat,
+    "longitude": location_found.lon,
+    "temperature_f":f"{temp_f:.1f}",
+    "weather_condition":weather_desc,
+    "fetched_at": datetime.now().strftime("%m-%d-%Y %H:%M"),
+}
 
+file_exists=os.path.exists("weather_log.csv")
+with open("weather_log.csv",mode="a", newline="") as f:
+    writer=csv.DictWriter(f, fieldnames=row.keys())
+    if not file_exists:
+        writer.writeheader()
+    writer.writerow(row)
 print(f"📍 Location: {location_found.place}")
 print(f"🌡️ Temperature: {temp_c}°C ({temp_f:.1f}°F)")
 print(f"☀️ Condition: {weather_desc}")
